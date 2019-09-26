@@ -32,7 +32,7 @@ namespace RedisJobQueue.Web
                 var conn = ConnectionMultiplexer
                     .Connect(
                         Configuration.GetConnectionString("Redis"));
-                return new RedisJobQueueStore(conn, new JobQueueOptions
+                return new RedisJobQueue(conn, new JobQueueOptions
                 {
                     Namespace = Configuration.GetValue<string>("RedisJobQueue:Namespace")
                 });

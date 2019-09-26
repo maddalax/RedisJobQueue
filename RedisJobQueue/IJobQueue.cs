@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace RedisJobQueue
 {
-    public interface IRedisJobQueue
+    public interface IJobQueue
     {
         void Start();
         Task<long> Enqueue(string job, object args);

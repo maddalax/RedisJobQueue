@@ -9,9 +9,9 @@ namespace RedisJobQueue.Web.Controllers
     [Route("api/[controller]")]
     public class JobController : Controller
     {
-        private readonly RedisJobQueueStore _store;
+        private readonly RedisJobQueue _store;
 
-        public JobController(RedisJobQueueStore store)
+        public JobController(RedisJobQueue store)
         {
             _store = store;
         }
