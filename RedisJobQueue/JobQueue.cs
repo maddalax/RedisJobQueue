@@ -151,10 +151,8 @@ namespace RedisJobQueue
         {
             job.RunId = Guid.NewGuid();
             await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", job.Name);
-            var serialized = BsonSerializer.ToBson(job);
             await SaveJobRun(job, JobStatus.Enqueued);
-            await _connection.GetDatabase().ListRightPushAsync($"{_options.KeyPrefix}_enqueued", serialized);
-            await _subscriber.PublishAsync(_options.KeyPrefix, "");
+            await DoEnqueue(job);
         }
         
         private async Task Enqueue(ExecutedJob run)
@@ -162,7 +160,12 @@ namespace RedisJobQueue
             await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", run.Name);
             run.Status = JobStatus.Enqueued;
             await SaveJobRun(run);
-            var serialized = BsonSerializer.ToBson(new Job(run));
+            await DoEnqueue(run);
+        }
+
+        private async Task DoEnqueue(object value)
+        {
+            var serialized = BsonSerializer.ToBson(value);
             await _connection.GetDatabase().ListRightPushAsync($"{_options.KeyPrefix}_enqueued", serialized, When.Always, CommandFlags.FireAndForget);
             await _subscriber.PublishAsync(_options.KeyPrefix, "");
         }
