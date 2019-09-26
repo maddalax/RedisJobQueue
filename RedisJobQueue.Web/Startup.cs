@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -73,9 +74,27 @@ namespace RedisJobQueue.Web
                     spa.UseReactDevelopmentServer(npmScript: "start");
                 }
             });
+            
+            RegisterQueue(app.ApplicationServices.GetService<RedisJobQueue>());
         }
-        
-        private void RegisterQueue()
-        {}
+
+        private void RegisterQueue(RedisJobQueue queue)
+        {
+           queue.Queue.OnJob("test", async () =>
+           {
+               Console.WriteLine("test has been executed.");
+           });
+           
+           queue.Queue.OnJob("error_test", async () =>
+           {
+              throw new Exception("error has occured.");
+           });
+           
+           queue.Queue.Start();
+           
+           queue.Queue.Enqueue("test");
+           queue.Queue.Enqueue("error_test");
+
+        }
     }
 }

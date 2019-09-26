@@ -26,8 +26,13 @@ namespace RedisJobQueue
         
         public async Task<IEnumerable<ExecutedJob>> GetRuns(string job)
         {
-            var members = await _connection.GetDatabase().SetMembersAsync($"{_options.KeyPrefix}_{job}_runs");
-            return members.Select(w => BsonSerializer.FromBson<ExecutedJob>(w));
+            var db = _connection.GetDatabase();
+            var ids = await db.SetMembersAsync($"{_options.KeyPrefix}_{job}_runs");
+            var keys = ids.Select(w => (RedisKey) $"{_options.KeyPrefix}_{w.ToString()}_run").ToArray();
+            var values = await db.StringGetAsync(keys);
+            return values
+                .Where(w => w.HasValue)
+                .Select(w => BsonSerializer.FromBson<ExecutedJob>(w));
         }
     }
 }

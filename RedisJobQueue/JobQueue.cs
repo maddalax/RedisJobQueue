@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Cronos;
 using RedisJobQueue.Models;
+using RedisJobQueue.Models.Exceptions;
 using RedisJobQueue.Utility;
 using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
@@ -53,11 +54,6 @@ namespace RedisJobQueue
                     var job = BsonSerializer.FromBson<Job>(value);
                     var key = $"{channel}_{job.Name}";
                     
-                    if (!_listeners.ContainsKey(job.Name) && !_listenersNoArgs.ContainsKey(job.Name))
-                    {
-                        return;
-                    }
-
                     using (var redLock = await _lockFactory.CreateLockAsync(key, _options.JobLockTimeout))
                     {
                         if (!redLock.IsAcquired)
@@ -65,6 +61,12 @@ namespace RedisJobQueue
                             return;
                         }
 
+                        if (!_listeners.ContainsKey(job.Name) && !_listenersNoArgs.ContainsKey(job.Name))
+                        {
+                            await OnJobError(job, new NoHandlerFoundException(job));
+                            return;
+                        }
+                        
                         await OnJobStart(job);
 
                         try
@@ -81,17 +83,32 @@ namespace RedisJobQueue
                         catch (Exception e)
                         {
                             await OnJobError(job, e);
+                            return;
                         }
+                        
+                        await SaveJobRun(job, JobStatus.Success);
 
-                        if (job.Type == JobType.Scheduled)
+                        switch (job.Type)
                         {
-                            await OnScheduledJobFinish(job);
+                            case JobType.Immediate:
+                                await OnImmediateJobFinish(job);
+                                break;
+                            case JobType.Scheduled:
+                                await OnScheduledJobFinish(job);
+                                break;
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e);
+                    if (_options.OnQueueError != null)
+                    {
+                        await _options.OnQueueError(e);
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             });
                 
@@ -108,6 +125,7 @@ namespace RedisJobQueue
         private void SubmitJobPoll()
         {
            _executor.Submit(ExecuteScheduledJobs);
+           _executor.Submit(ExecuteJobRetry);
         }
 
         public async Task<long> Enqueue(string job, object args)
@@ -126,9 +144,20 @@ namespace RedisJobQueue
         
         private async Task<long> Enqueue(Job job)
         {
+            job.RunId = Guid.NewGuid();
             await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", job.Name);
             var serialized = BsonSerializer.ToBson(job);
+            await SaveJobRun(job, JobStatus.Enqueued);
             return await _connection.GetDatabase().PublishAsync(_options.KeyPrefix, serialized);
+        }
+        
+        private async Task Enqueue(ExecutedJob run)
+        {
+            await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", run.Name);
+            run.Status = JobStatus.Enqueued;
+            await SaveJobRun(run);
+            var serialized = BsonSerializer.ToBson(new Job(run));
+            await _connection.GetDatabase().PublishAsync(_options.KeyPrefix, serialized);
         }
 
         public async Task<bool> Schedule(string job, string cronExpression)
@@ -186,26 +215,76 @@ namespace RedisJobQueue
                 }
             }
         }
+
+        private async Task ExecuteJobRetry()
+        {
+            var key = $"{_options.KeyPrefix}_job_retries";
+            var runIds = await _connection.GetDatabase().SetMembersAsync(key);
+            foreach (var value in runIds)
+            {
+                var run = await GetRun(Guid.Parse(value.ToString()));
+                
+                if (run == null || run.Status != JobStatus.Retrying)
+                {
+                    continue;
+                }
+
+                if (DateTime.UtcNow.Ticks < run.NextRetry)
+                {
+                    continue;
+                }
+
+                await Enqueue(run);
+            }
+        }
+
+        private async Task OnImmediateJobFinish(Job job)
+        {
+        }
         
         private async Task OnScheduledJobFinish(Job job)
         {
-            var lastRun = $"{_options.KeyPrefix}_{job.Name}_last_run";
             var lastCheck = $"{_options.KeyPrefix}_{job.Name}_last_check";
-            var ticks = DateTime.UtcNow.Ticks;
-            await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_{job.Name}_runs", BsonSerializer.ToBson(new ExecutedJob
-            {
-                MachineId = _id,
-                MachineName = Environment.MachineName,
-                Name = job.Name,
-                Timestamp = ticks
-            }));
-            await _connection.GetDatabase().StringSetAsync(lastRun, ticks);
             await _connection.GetDatabase().KeyDeleteAsync(lastCheck);
+        }
+
+        private async Task SaveJobRun(Job job, JobStatus status)
+        {
+            var run = await GetRun(job);
+            var execution = new ExecutedJob(job, status, _id);
+            if (run != null)
+            {
+                execution.Retries = run.Retries;
+                execution.NextRetry = run.NextRetry;
+            }
+            await SaveJobRun(execution);
+        }
+        
+        private async Task SaveJobRun(ExecutedJob job)
+        {
+            job.Timestamp = DateTime.UtcNow.Ticks;
+            var lastRun = $"{_options.KeyPrefix}_{job.Name}_last_run";
+            await _connection.GetDatabase().StringSetAsync($"{_options.KeyPrefix}_{job.RunId}_run", BsonSerializer.ToBson(job));
+            await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_{job.Name}_runs", job.RunId.ToString());
+            await _connection.GetDatabase().StringSetAsync(lastRun, job.Timestamp);
+        }
+        
+        private async Task<ExecutedJob> GetRun(Job job)
+        {
+            return await GetRun(job.RunId);
+        }
+        
+        private async Task<ExecutedJob> GetRun(Guid runId)
+        {
+            var key = $"{_options.KeyPrefix}_{runId}_run";
+            var run = await _connection.GetDatabase().StringGetAsync(key);
+            return run.HasValue ? BsonSerializer.FromBson<ExecutedJob>(run) : null;
         }
 
         private async Task OnJobStart(Job job)
         {
-            await _connection.GetDatabase().StringSetAsync($"{_options.KeyPrefix}_{job.Name}_details", BsonSerializer.ToBson(
+            await SaveJobRun(job, JobStatus.Running);
+            await _connection.GetDatabase().StringSetAsync($"{_options.KeyPrefix}_{job.RunId}_details", BsonSerializer.ToBson(
                 new JobExecutionDetail
                 {
                     DateStarted = DateTime.UtcNow.Ticks,
@@ -217,27 +296,16 @@ namespace RedisJobQueue
         
         private async Task OnJobError(Job job, Exception e)
         {
-            var key = $"{_options.KeyPrefix}_{job.Name}_details";
-            var current = _connection.GetDatabase().StringGet(key);
-            if (!current.HasValue)
+            var run = await GetRun(job) ?? new ExecutedJob(job, JobStatus.Retrying, _id);
+            run.Exception = e;
+            if (run.Retries < _options.MaxRetries && run.Status != JobStatus.Errored)
             {
-                await _connection.GetDatabase().StringSetAsync(key, BsonSerializer.ToBson(
-                    new JobExecutionDetail
-                    {
-                        DateStarted = DateTime.UtcNow.Ticks,
-                        Name = job.Name,
-                        Parameters = job.Parameters,
-                        Status = JobStatus.Errored,
-                        Exception = e
-                    }));   
+                await RetryJob(job, run);
             }
             else
             {
-                var details = BsonSerializer.FromBson<JobExecutionDetail>(current);
-                details.Exception = e;
-                details.Status = JobStatus.Errored;
-                await _connection.GetDatabase().StringSetAsync(key, BsonSerializer.ToBson(
-                    details));
+                run.Status = JobStatus.Errored;
+                await SaveJobRun(run);
             }
         }
         
@@ -265,5 +333,20 @@ namespace RedisJobQueue
             await db.StringSetAsync(key, now.Ticks);
             return now;
         }
+        
+        private async Task RetryJob(Job job, ExecutedJob run)
+        {
+            run.Retries++;
+            run.Status = JobStatus.Retrying;
+            run.NextRetry = CalculateNextRetry(run);
+            await SaveJobRun(run);
+            await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_job_retries", job.RunId.ToString());
+        }
+        
+        private long CalculateNextRetry(ExecutedJob run)
+        {
+            return (run.Retries * _options.RetryBackOff).Ticks;
+        }
+
     }
 }

@@ -10,7 +10,11 @@ namespace RedisJobQueue.Models
         public TimeSpan JobLockTimeout { get; set; } = TimeSpan.FromSeconds(30);
         public TimeSpan PollRate { get; set; } = TimeSpan.FromSeconds(5);
 
-        public Func<Task> OnError { get; set; }
+        public int MaxRetries { get; set; } = 10;
+        
+        public TimeSpan RetryBackOff { get; set; } = TimeSpan.FromSeconds(5);
+
+        public Func<Exception, Task> OnQueueError { get; set; }
 
         public string KeyPrefix
         {

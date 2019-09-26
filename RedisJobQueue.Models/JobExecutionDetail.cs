@@ -17,6 +17,8 @@ namespace RedisJobQueue.Models
         Running,
         Errored,
         Stopped,
-        Expired
+        Success,
+        Enqueued,
+        Retrying
     }
 }
