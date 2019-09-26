@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisJobQueue", "RedisJobQueue\RedisJobQueue.csproj", "{E0673150-5FF7-4DAA-8B48-A261D31A04B7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisJobQueue.Models", "RedisJobQueue.Models\RedisJobQueue.Models.csproj", "{70FA9108-41A1-4800-81F2-2F4D9A50AE62}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisJobQueue.Utility", "RedisJobQueue.Utility\RedisJobQueue.Utility.csproj", "{BE4CE71F-473F-4058-9B91-F3E983214A11}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisJobQueue.Web", "RedisJobQueue.Web\RedisJobQueue.Web.csproj", "{D34D0F5F-13EB-4013-A30D-9B9F7276DFDE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E0673150-5FF7-4DAA-8B48-A261D31A04B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0673150-5FF7-4DAA-8B48-A261D31A04B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0673150-5FF7-4DAA-8B48-A261D31A04B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0673150-5FF7-4DAA-8B48-A261D31A04B7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70FA9108-41A1-4800-81F2-2F4D9A50AE62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70FA9108-41A1-4800-81F2-2F4D9A50AE62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70FA9108-41A1-4800-81F2-2F4D9A50AE62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70FA9108-41A1-4800-81F2-2F4D9A50AE62}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE4CE71F-473F-4058-9B91-F3E983214A11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE4CE71F-473F-4058-9B91-F3E983214A11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE4CE71F-473F-4058-9B91-F3E983214A11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE4CE71F-473F-4058-9B91-F3E983214A11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D34D0F5F-13EB-4013-A30D-9B9F7276DFDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D34D0F5F-13EB-4013-A30D-9B9F7276DFDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D34D0F5F-13EB-4013-A30D-9B9F7276DFDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D34D0F5F-13EB-4013-A30D-9B9F7276DFDE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

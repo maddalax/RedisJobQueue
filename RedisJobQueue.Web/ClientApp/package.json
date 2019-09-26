@@ -1,0 +1,36 @@
+{
+  "name": "redis-job-queue",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "bootstrap": "^4.3.1",
+    "jquery": "3.4.1",
+    "react": "^16.9.0",
+    "react-dom": "^16.9.0",
+    "react-router-bootstrap": "^0.25.0",
+    "react-router-dom": "^4.3.1",
+    "react-scripts": "^2.1.8",
+    "reactstrap": "^8.0.1",
+    "rimraf": "^3.0.0"
+  },
+  "devDependencies": {
+    "ajv": "^6.10.2",
+    "cross-env": "^5.2.1"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "scripts": {
+    "start": "rimraf ./build && react-scripts start",
+    "build": "react-scripts build",
+    "test": "cross-env CI=true react-scripts test --env=jsdom",
+    "eject": "react-scripts eject",
+    "lint": "eslint ./src/"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
+}
