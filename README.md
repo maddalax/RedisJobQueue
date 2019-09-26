@@ -9,9 +9,6 @@ Job queue backed by Redis for scaling background jobs over multiple nodes.
 - Dashboard to view and manage jobs.
 - REST API to view and manage jobs.
 
-**Upcoming:**
-- Job persistence if no nodes are online to execute it.
-
 **Usage:**
 
 ```c#
