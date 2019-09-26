@@ -34,6 +34,11 @@ export class FetchData extends Component {
         await execute();
     }
 
+
+    async enqueue(job) {
+       await fetch(`api/Job/Enqueue?name=${job}`);
+    }
+
     renderTable() {
         return (
             <table className='table table-striped'>
@@ -105,7 +110,10 @@ export class FetchData extends Component {
                             <td>{run.machineName}</td>
                             <td>{run.timestamp}</td>
                             <td style={{backgroundColor: this.statusColor(run.status)}}>{this.statusMessage(run)}</td>
-                            <td><a href={"#"} onClick={() => this.setState({selectedRun: index})}>Details</a></td>
+                            <td>
+                                <a href={"#"} onClick={() => this.setState({selectedRun: index})}>Details</a>
+                                <a href={"#"} onClick={() => this.enqueue(run.name)}>Enqueue</a>
+                            </td>
                         </tr>
                     )}
                     </tbody>

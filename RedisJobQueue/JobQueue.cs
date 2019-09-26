@@ -47,71 +47,75 @@ namespace RedisJobQueue
         private void Subscribe()
         {
             _subscriber = _connection.GetSubscriber();
-            _subscriber.SubscribeAsync(_options.KeyPrefix, async (channel, value) =>
+            _subscriber.SubscribeAsync(_options.KeyPrefix, async delegate
             {
-                try
-                {
-                    var job = BsonSerializer.FromBson<Job>(value);
-                    var key = $"{channel}_{job.Name}";
+                  try
+                  {
+                      var value = await _connection.GetDatabase().ListLeftPopAsync($"{_options.KeyPrefix}_enqueued");
+                      if (!value.HasValue)
+                      {
+                          return;
+                      }
+                      var job = BsonSerializer.FromBson<Job>(value);
+                      var key = $"{_options.KeyPrefix}_{job.Name}";
                     
-                    using (var redLock = await _lockFactory.CreateLockAsync(key, _options.JobLockTimeout))
-                    {
-                        if (!redLock.IsAcquired)
-                        {
-                            return;
-                        }
+                      using (var redLock = await _lockFactory.CreateLockAsync(key, _options.JobLockTimeout))
+                      {
+                          if (!redLock.IsAcquired)
+                          {
+                              return;
+                          }
 
-                        if (!_listeners.ContainsKey(job.Name) && !_listenersNoArgs.ContainsKey(job.Name))
-                        {
-                            await OnJobError(job, new NoHandlerFoundException(job));
-                            return;
-                        }
+                          if (!_listeners.ContainsKey(job.Name) && !_listenersNoArgs.ContainsKey(job.Name))
+                          {
+                              await OnJobError(job, new NoHandlerFoundException(job));
+                              return;
+                          }
                         
-                        await OnJobStart(job);
+                          await OnJobStart(job);
 
-                        try
-                        {
-                            if (_listeners.ContainsKey(job.Name))
-                            {
-                                await _listeners[job.Name](job.Parameters);
-                            }
-                            else
-                            {
-                                await _listenersNoArgs[job.Name]();
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            await OnJobError(job, e);
-                            return;
-                        }
+                          try
+                          {
+                              if (_listeners.ContainsKey(job.Name))
+                              {
+                                  await _listeners[job.Name](job.Parameters);
+                              }
+                              else
+                              {
+                                  await _listenersNoArgs[job.Name]();
+                              }
+                          }
+                          catch (Exception e)
+                          {
+                              await OnJobError(job, e);
+                              return;
+                          }
                         
-                        await SaveJobRun(job, JobStatus.Success);
+                          await SaveJobRun(job, JobStatus.Success);
 
-                        switch (job.Type)
-                        {
-                            case JobType.Immediate:
-                                await OnImmediateJobFinish(job);
-                                break;
-                            case JobType.Scheduled:
-                                await OnScheduledJobFinish(job);
-                                break;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    if (_options.OnQueueError != null)
-                    {
-                        await _options.OnQueueError(e);
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
+                          switch (job.Type)
+                          {
+                              case JobType.Immediate:
+                                  await OnImmediateJobFinish(job);
+                                  break;
+                              case JobType.Scheduled:
+                                  await OnScheduledJobFinish(job);
+                                  break;
+                          }
+                      }
+                  }
+                  catch (Exception e)
+                  {
+                      if (_options.OnQueueError != null)
+                      {
+                          await _options.OnQueueError(e);
+                      }
+                      else
+                      {
+                          throw;
+                      }
+                  }
             });
-                
         }
 
         public void Start()
@@ -124,31 +128,33 @@ namespace RedisJobQueue
 
         private void SubmitJobPoll()
         {
+           _executor.Submit(ExecutePoll);
            _executor.Submit(ExecuteScheduledJobs);
            _executor.Submit(ExecuteJobRetry);
         }
 
-        public async Task<long> Enqueue(string job, object args)
+        public async Task Enqueue(string job, object args)
         {
-            return await Enqueue(new Job
+            await Enqueue(new Job
             {
                 Name = job,
                 Parameters = args
             });
         }
         
-        public async Task<long> Enqueue(string job)
+        public async Task Enqueue(string job)
         {
-            return await Enqueue(new Job { Name = job });
+            await Enqueue(new Job { Name = job });
         }
         
-        private async Task<long> Enqueue(Job job)
+        private async Task Enqueue(Job job)
         {
             job.RunId = Guid.NewGuid();
             await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", job.Name);
             var serialized = BsonSerializer.ToBson(job);
             await SaveJobRun(job, JobStatus.Enqueued);
-            return await _connection.GetDatabase().PublishAsync(_options.KeyPrefix, serialized);
+            await _connection.GetDatabase().ListRightPushAsync($"{_options.KeyPrefix}_enqueued", serialized);
+            await _subscriber.PublishAsync(_options.KeyPrefix, "");
         }
         
         private async Task Enqueue(ExecutedJob run)
@@ -157,7 +163,8 @@ namespace RedisJobQueue
             run.Status = JobStatus.Enqueued;
             await SaveJobRun(run);
             var serialized = BsonSerializer.ToBson(new Job(run));
-            await _connection.GetDatabase().PublishAsync(_options.KeyPrefix, serialized);
+            await _connection.GetDatabase().ListRightPushAsync($"{_options.KeyPrefix}_enqueued", serialized, When.Always, CommandFlags.FireAndForget);
+            await _subscriber.PublishAsync(_options.KeyPrefix, "");
         }
 
         public async Task<bool> Schedule(string job, string cronExpression)
@@ -185,6 +192,11 @@ namespace RedisJobQueue
         {
             _connection?.Dispose();
             _lockFactory?.Dispose();
+        }
+
+        private async Task ExecutePoll()
+        {
+            await _subscriber.PublishAsync(_options.KeyPrefix, "");
         }
 
         private async Task ExecuteScheduledJobs()
@@ -342,6 +354,7 @@ namespace RedisJobQueue
             await SaveJobRun(run);
             await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_job_retries", job.RunId.ToString());
         }
+        
         
         private long CalculateNextRetry(ExecutedJob run)
         {

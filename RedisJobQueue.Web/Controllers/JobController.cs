@@ -23,6 +23,13 @@ namespace RedisJobQueue.Web.Controllers
         }
         
         [HttpGet("[action]")]
+        public async Task<IActionResult> Enqueue([FromQuery] string name)
+        {
+            await _store.Queue.Enqueue(name);
+            return NoContent();
+        }
+        
+        [HttpGet("[action]")]
         public async Task<IEnumerable<ExecutedJobDto>> Runs([FromQuery] string job)
         {
             var runs = await _store.Analytics.GetRuns(job);
