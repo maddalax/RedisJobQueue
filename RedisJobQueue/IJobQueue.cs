@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using RedisJobQueue.Models;
 
 namespace RedisJobQueue
 {
@@ -9,7 +10,8 @@ namespace RedisJobQueue
         Task Enqueue(string job, object args);
         Task Enqueue(string job);
         Task<bool> Schedule(string job, string cronExpression);
-        void OnJob<T>(string job, Func<T, Task> callback);
-        void OnJob(string job, Func<Task> callback);
+        Task OnJob<T>(string job, Func<T, Task> callback);
+        Task OnJob(string job, Func<Task> callback);
+        Task OnJob(string job, JobOptions options, Func<Task> callback);
     }
 }

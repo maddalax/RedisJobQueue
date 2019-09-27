@@ -4,13 +4,15 @@ export class FetchData extends Component {
     static displayName = FetchData.name;
 
     runsInterval = null;
+    enqueuedInterval = null;
 
     constructor(props) {
         super(props);
-        this.state = {jobs: [], runs: [], selectedRun: -1, loading: true};
+        this.state = {jobs: [], runs: [], count : 0, selectedRun: -1, selectedJob : '', loading: true};
     }
 
     async componentDidMount() {
+        this.getEnqueuedCount();
         await this.getJobList();
     }
 
@@ -19,9 +21,24 @@ export class FetchData extends Component {
         const data = await response.json();
         this.setState({jobs: data, loading: false});
     }
+    
+    async getEnqueuedCount() {
+        const execute = async () => {
+            const response = await fetch(`api/Job/EnqueuedCount`);
+            const data = await response.json();
+            this.setState({count: data});
+        };
+        if (this.enqueuedInterval) {
+            clearInterval(this.enqueuedInterval);
+            this.enqueuedInterval = null;
+        }
+        this.enqueuedInterval = setInterval(execute, 1000);
+        await execute();
+    }
 
     async getRuns(job) {
         const execute = async () => {
+            this.setState({selectedJob : job});
             const response = await fetch(`api/Job/Runs?job=${job}`);
             const data = await response.json();
             this.setState({runs: data});
@@ -30,13 +47,14 @@ export class FetchData extends Component {
             clearInterval(this.runsInterval);
             this.runsInterval = null;
         }
-        this.runsInterval = setInterval(execute, 5000);
+        this.runsInterval = setInterval(execute, 500);
         await execute();
     }
 
 
     async enqueue(job) {
-       await fetch(`api/Job/Enqueue?name=${job}`);
+       const count = window.prompt("How many to enqueue?", "1");
+       await fetch(`api/Job/Enqueue?name=${job}&count=` + parseInt(count));
     }
 
     renderTable() {
@@ -90,13 +108,13 @@ export class FetchData extends Component {
     renderRuns() {
         return (
             <>
-                <h1>Runs</h1>
+                <h1>Runs For {this.state.selectedJob}</h1>
+                <a href={"#"} onClick={() => this.enqueue(this.state.selectedJob)}>Enqueue Now</a>
                 <table className='table table-striped'>
                     <thead>
                     <tr>
                         <th>Name</th>
                         <th>Machine ID</th>
-                        <th>Machine Name</th>
                         <th>Date</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -130,10 +148,10 @@ export class FetchData extends Component {
 
         return (
             <div>
-                <h1>Jobs</h1>
+                <h1>Jobs (Enqueued: {this.state.count})</h1>
                 {contents}
                 {this.state.selectedRun !== -1 && this.state.runs.length > 0 && this.renderRunDetails()}
-                {this.state.runs.length > 0 && this.renderRuns()}
+                {this.state.selectedJob && this.renderRuns()}
             </div>
         );
     }

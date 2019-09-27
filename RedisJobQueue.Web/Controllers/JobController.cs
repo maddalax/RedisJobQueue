@@ -6,7 +6,7 @@ using RedisJobQueue.Models;
 
 namespace RedisJobQueue.Web.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/[controller]/[action]")]
     public class JobController : Controller
     {
         private readonly RedisJobQueue _store;
@@ -16,20 +16,26 @@ namespace RedisJobQueue.Web.Controllers
             _store = store;
         }
 
-        [HttpGet("[action]")]
         public async Task<HashSet<string>> Jobs()
         {
             return await _store.Analytics.GetJobs();
         }
         
-        [HttpGet("[action]")]
-        public async Task<IActionResult> Enqueue([FromQuery] string name)
+        public async Task<IActionResult> Enqueue([FromQuery] string name, int count = 1)
         {
-            await _store.Queue.Enqueue(name);
+            for (int i = 0; i < count; i++)
+            {
+                await _store.Queue.Enqueue(name);
+            }
             return NoContent();
         }
         
-        [HttpGet("[action]")]
+        public async Task<IActionResult> EnqueuedCount()
+        {
+            var count = await _store.Analytics.GetEnqueuedCount();
+            return Ok(count);
+        }
+        
         public async Task<IEnumerable<ExecutedJobDto>> Runs([FromQuery] string job)
         {
             var runs = await _store.Analytics.GetRuns(job);

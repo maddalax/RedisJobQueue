@@ -2,6 +2,7 @@ using System;
 
 namespace RedisJobQueue.Models.Exceptions
 {
+    [SerializableAttribute]
     public class NoHandlerFoundException : Exception
     {
         public NoHandlerFoundException(Job job) 

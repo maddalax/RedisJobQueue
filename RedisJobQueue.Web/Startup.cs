@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -82,19 +83,46 @@ namespace RedisJobQueue.Web
         {
            queue.Queue.OnJob("test", async () =>
            {
-               Console.WriteLine("test has been executed.");
+               Console.WriteLine(Guid.NewGuid());
+               await Task.Delay(2000);
            });
            
            queue.Queue.OnJob("error_test", async () =>
            {
               throw new Exception("error has occured.");
            });
+
+           queue.Queue.OnJob("scheduled", async () =>
+           {
+               Console.WriteLine("scheduled has been executed.");
+           });
+           
+           queue.Queue.OnJob("scheduled_error", async () =>
+           {
+               throw new Exception("scheduled error has occured.");
+           });
+           
+           queue.Queue.OnJob("concurrent (only allows 1 at time)", new JobOptions
+           {
+               AllowConcurrentExecution = false
+           }, async () =>
+           {
+               Console.WriteLine("Concurrent: " + DateTime.UtcNow);
+               Console.WriteLine("Sleeping 2s.");
+               await Task.Delay(2000);
+           });
+           
+           queue.Queue.OnJob("not concurrent (allows parallel execution) (10 workers default)", new JobOptions
+           {
+               AllowConcurrentExecution = true
+           }, async () =>
+           {
+               Console.WriteLine("Not Concurrent: " + DateTime.UtcNow);
+               Console.WriteLine("Sleeping 2s.");
+               await Task.Delay(2000);
+           });
            
            queue.Queue.Start();
-           
-           queue.Queue.Enqueue("test");
-           queue.Queue.Enqueue("error_test");
-
         }
     }
 }

@@ -8,6 +8,8 @@ namespace RedisJobQueue.Models
         public object Parameters { get; set; }
         public JobType Type { get; set; }
         public Guid RunId { get; set; }
+        
+        public JobOptions Options { get; set; }
 
         public Job()
         {

@@ -8,5 +8,6 @@ namespace RedisJobQueue
     {
         Task<HashSet<string>> GetJobs();
         Task<IEnumerable<ExecutedJob>> GetRuns(string job);
+        Task<long> GetEnqueuedCount();
     }
 }

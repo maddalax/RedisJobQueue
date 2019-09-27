@@ -34,5 +34,10 @@ namespace RedisJobQueue
                 .Where(w => w.HasValue)
                 .Select(w => BsonSerializer.FromBson<ExecutedJob>(w));
         }
+
+        public Task<long> GetEnqueuedCount()
+        {
+            return _connection.GetDatabase().ListLengthAsync($"{_options.KeyPrefix}_enqueued");
+        }
     }
 }
