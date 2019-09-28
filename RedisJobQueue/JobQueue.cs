@@ -136,16 +136,16 @@ namespace RedisJobQueue
             transaction.PublishAsync($"{_options.KeyPrefix}_on_enqueue", "");
         }
 
-        public async Task<bool> Schedule(string job, string cronExpression)
+        public async Task Schedule(string job, string cronExpression)
         {
             var j = new Job
             {
                 Name = job,
                 Parameters = cronExpression
             };
-            await _connection.GetDatabase().SetAddAsync($"{_options.KeyPrefix}_jobs", j.Name);
-            return await _connection.GetDatabase()
-                .SetAddAsync($"{_options.KeyPrefix}_scheduled_jobs", BsonSerializer.ToBson(j));
+            var transaction = _connection.GetDatabase().CreateTransaction();
+            transaction.SetAddAsync($"{_options.KeyPrefix}_scheduled_jobs", job, CommandFlags.FireAndForget);
+            await UpsertJob(j, transaction);
         }
 
         public async Task OnJob<T>(string job, Func<T, Task> callback)
@@ -159,12 +159,16 @@ namespace RedisJobQueue
         {
             await OnJob(job, new JobOptions(), callback);
         }
+        
+        public void OnScheduledJob(string job, Func<Task> callback)
+        {
+            Expression<Func<Task>> expression = () => callback();
+            _listenersNoArgs.TryAdd(job, expression.Compile());
+        }
 
         public async Task OnJob(string job, JobOptions options, Func<Task> callback)
         {
             await UpsertJob(job, options);
-            Expression<Func<Task>> expression = () => callback();
-            _listenersNoArgs.TryAdd(job, expression.Compile());
         }
 
         public void Dispose()
@@ -204,21 +208,43 @@ namespace RedisJobQueue
                     return;
                 }
 
-                var jobs = await _connection.GetDatabase().SetMembersAsync($"{_options.KeyPrefix}_scheduled_jobs");
+                var jobNames = await _connection.GetDatabase().SetMembersAsync($"{_options.KeyPrefix}_scheduled_jobs");
+                var names = jobNames.Select(w => w.ToString()).ToHashSet();
+                
+                var jobs = await GetJobs(names);
+                var jobDict = jobs.ToDictionary(w => w.Name, w => w);
+                var runs = await GetLastRuns(jobs);
 
-                foreach (var value in jobs)
+                var jobsNotRun = names.Where(w => !runs.ContainsKey(w));
+
+                if (jobsNotRun.Any())
                 {
-                    var job = BsonSerializer.FromBson<Job>(value);
+                    var jobsLastCheck = await GetLastChecks(jobsNotRun);
+                    foreach (var (job, value) in jobsLastCheck)
+                    {
+                        runs.Add(job, value);
+                    }
+                }
+                
+                var toExecute = new List<Job>();
+                foreach (var pair in runs)
+                {
+                    var (name, value) = pair;
+                    var job = jobDict[name];
                     var expression = CronExpression.Parse((string) job.Parameters);
-                    var occurence = await GetLastRun(job) ?? await GetLastCheck(job) ?? DateTime.UtcNow;
+                    var occurence = value ?? DateTime.UtcNow;
                     var nextUtc = expression.GetNextOccurrence(occurence);
                     if (!nextUtc.HasValue || nextUtc.Value > DateTime.UtcNow)
                     {
                         continue;
                     }
-
                     job.Type = JobType.Scheduled;
-                    Enqueue(job);
+                    toExecute.Add(job);
+                }
+                
+                if (toExecute.Any())
+                {
+                    await EnqueueMany(toExecute);
                 }
             }
         }
@@ -278,10 +304,20 @@ namespace RedisJobQueue
             return value.HasValue ? BsonSerializer.FromBson<ExecutedJob>(value) : null;
         }
         
-        private async Task UpsertJob(string name, JobOptions options)
+        private async Task UpsertJob(string name, JobOptions options, ITransaction transaction = null)
+        {
+            var job = new Job
+            {
+                Name = name,
+                Options = options
+            };
+            await UpsertJob(job, transaction);
+        }
+        
+        private async Task UpsertJob(Job job, ITransaction transaction = null)
         {
             using (var redLock =
-                await _lockFactory.CreateLockAsync($"{_options.KeyPrefix}_{name}_create", TimeSpan.FromSeconds(5)))
+                await _lockFactory.CreateLockAsync($"{_options.KeyPrefix}_{job.Name}_create", TimeSpan.FromSeconds(5)))
             {
                 if (!redLock.IsAcquired)
                 {
@@ -289,20 +325,16 @@ namespace RedisJobQueue
                 }
 
                 var db = _connection.GetDatabase();
-                var transaction = db.CreateTransaction();
-                var job = new Job
-                {
-                    Name = name,
-                    Options = options
-                };
-
+                transaction = transaction ?? db.CreateTransaction();
+                
                 // Will break if you await, due to how transactions are processed.
-                transaction.StringSetAsync($"{_options.KeyPrefix}_job_{name}_meta", BsonSerializer.ToBson(job));
-                transaction.SetAddAsync($"{_options.KeyPrefix}_jobs", name);
+                transaction.StringSetAsync($"{_options.KeyPrefix}_job_{job.Name}_meta", BsonSerializer.ToBson(job));
+                transaction.SetAddAsync($"{_options.KeyPrefix}_jobs", job.Name);
 
                 await transaction.ExecuteAsync();
             }
         }
+
 
         private async Task<Job> GetJob(string name)
         {
@@ -383,32 +415,53 @@ namespace RedisJobQueue
                 await transaction.ExecuteAsync(CommandFlags.FireAndForget);
             }
         }
-
-        private async Task<DateTime?> GetLastRun(Job job)
+        
+        private async Task<Dictionary<string, DateTime?>> GetLastRuns(IEnumerable<Job> job)
         {
-            var key = $"{_options.KeyPrefix}_{job.Name}_last_run";
-            var ticks = await _connection.GetDatabase().StringGetAsync(key);
-            if (!ticks.HasValue)
+            var jobsArray = job.ToArray();
+            var keys = jobsArray.Select(w => (RedisKey) $"{_options.KeyPrefix}_{w.Name}_last_run").ToArray();
+            var ticks = await _connection.GetDatabase().StringGetAsync(keys);
+            var dict = new Dictionary<string, DateTime?>();
+            for (var i = 0; i < jobsArray.Length; i++)
             {
-                return null;
+                var tick = ticks[i];
+                if (tick.HasValue)
+                {
+                    dict.Add(jobsArray[i].Name, 
+                       new DateTime(long.Parse(tick.ToString()), DateTimeKind.Utc));   
+                }
             }
 
-            return new DateTime(long.Parse(ticks.ToString()), DateTimeKind.Utc);
+            return dict;
         }
 
-        private async Task<DateTime?> GetLastCheck(Job job)
+        private async Task<Dictionary<string, DateTime?>> GetLastChecks(IEnumerable<string> names)
         {
             var db = _connection.GetDatabase();
-            var key = $"{_options.KeyPrefix}_{job.Name}_last_check";
+            var namesArray = names.ToArray();
+            var keys = namesArray.Select(w => (RedisKey) $"{_options.KeyPrefix}_{w}_last_check").ToArray();
+            var ticks = await db.StringGetAsync(keys);
             var now = DateTime.UtcNow;
-            var ticks = await db.StringGetAsync(key);
-            if (ticks.HasValue)
+            var dict = new Dictionary<string, DateTime?>();
+            var hasNoValue = new List<string>();
+            
+            for (var i = 0; i < namesArray.Length; i++)
             {
-                return new DateTime(long.Parse(ticks.ToString()), DateTimeKind.Utc);
+                var tick = ticks[i];
+                var name = namesArray[i];
+                if (!tick.HasValue)
+                {
+                   hasNoValue.Add(name);
+                }
+                dict.Add(name, 
+                    tick.HasValue ? new DateTime(long.Parse(tick.ToString()), DateTimeKind.Utc) : new DateTime(now.Ticks, DateTimeKind.Utc));
             }
+            
+            var toSaveLastCheck = hasNoValue.Select(w => $"{_options.KeyPrefix}_{w}_last_check")
+                .Select(w => new KeyValuePair<RedisKey, RedisValue>(w, now.Ticks)).ToArray();
+            await db.StringSetAsync(toSaveLastCheck, When.Always, CommandFlags.FireAndForget);
 
-            await db.StringSetAsync(key, now.Ticks);
-            return now;
+            return dict;
         }
 
         private void RetryJob(Job job, ExecutedJob run, ITransaction transaction)
