@@ -23,10 +23,13 @@ namespace RedisJobQueue.Web.Controllers
         
         public async Task<IActionResult> Enqueue([FromQuery] string name, int count = 1)
         {
-            for (int i = 0; i < count; i++)
+            var list = new List<string>(count);
+            for (var i = 0; i < count; i++)
             {
-                await _store.Queue.Enqueue(name);
+                list.Add(name);
             }
+
+            await _store.Queue.EnqueueMany(list);
             return NoContent();
         }
         

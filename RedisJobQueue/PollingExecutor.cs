@@ -46,6 +46,10 @@ namespace RedisJobQueue
 
                     await DoExecute();
                 }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
                 finally
                 {
                     await Task.Delay(_rate);

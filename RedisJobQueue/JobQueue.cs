@@ -169,6 +169,8 @@ namespace RedisJobQueue
         public async Task OnJob(string job, JobOptions options, Func<Task> callback)
         {
             await UpsertJob(job, options);
+            var expression = new Func<object, Task>(o => callback());
+            _listeners.TryAdd(job, expression);
         }
 
         public void Dispose()
@@ -576,6 +578,7 @@ namespace RedisJobQueue
 
             try
             {
+                transaction.StringIncrementAsync($"{_options.KeyPrefix}_job_{job.Name}_run_count");
                 await SaveJobRun(job, JobStatus.Success, transaction);
 
                 switch (job.Type)
@@ -587,6 +590,10 @@ namespace RedisJobQueue
                         await OnScheduledJobFinish(job, transaction);
                         break;
                 }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
             }
             finally
             {

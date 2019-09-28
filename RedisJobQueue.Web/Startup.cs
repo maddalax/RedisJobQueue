@@ -76,53 +76,28 @@ namespace RedisJobQueue.Web
                 }
             });
             
-            RegisterQueue(app.ApplicationServices.GetService<RedisJobQueue>());
+            RegisterQueue(app.ApplicationServices.GetService<IServiceScopeFactory>());
         }
 
-        private void RegisterQueue(RedisJobQueue queue)
+        private async Task RegisterQueue(IServiceScopeFactory factory)
         {
-           queue.Queue.OnJob("test", async () =>
-           {
-               Console.WriteLine(Guid.NewGuid());
-               await Task.Delay(2000);
-           });
-           
-           queue.Queue.OnJob("error_test", async () =>
-           {
-              throw new Exception("error has occured.");
-           });
-
-           queue.Queue.OnJob("scheduled", async () =>
-           {
-               Console.WriteLine("scheduled has been executed.");
-           });
-           
-           queue.Queue.OnJob("scheduled_error", async () =>
-           {
-               throw new Exception("scheduled error has occured.");
-           });
-           
-           queue.Queue.OnJob("concurrent (only allows 1 at time)", new JobOptions
-           {
-               AllowConcurrentExecution = false
-           }, async () =>
-           {
-               Console.WriteLine("Concurrent: " + DateTime.UtcNow);
-               Console.WriteLine("Sleeping 2s.");
-               await Task.Delay(2000);
-           });
-           
-           queue.Queue.OnJob("not concurrent (allows parallel execution) (10 workers default)", new JobOptions
-           {
-               AllowConcurrentExecution = true
-           }, async () =>
-           {
-               Console.WriteLine("Not Concurrent: " + DateTime.UtcNow);
-               Console.WriteLine("Sleeping 2s.");
-               await Task.Delay(2000);
-           });
-           
-           queue.Queue.Start();
+            using (var scope = factory.CreateScope())
+            {
+                try
+                {
+                    var queue = scope.ServiceProvider.GetService<RedisJobQueue>();
+                    await queue.Queue.OnJob("test", () =>
+                    {
+                        Console.WriteLine(Guid.NewGuid() + " " + DateTime.UtcNow);
+                        return Task.CompletedTask;
+                    });
+                    queue.Queue.Start();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+            }
         }
     }
 }

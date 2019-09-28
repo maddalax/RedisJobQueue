@@ -15,7 +15,7 @@ namespace RedisJobQueue.Models
         {
             
         }
-
+        
         public Job(ExecutedJob run)
         {
             Name = run.Name;
