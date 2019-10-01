@@ -148,6 +148,18 @@ namespace RedisJobQueue
             transaction.SetAddAsync($"{_options.KeyPrefix}_scheduled_jobs", job, CommandFlags.FireAndForget);
             await UpsertJob(j, transaction);
         }
+        
+        public async Task Interval(string job, TimeSpan span)
+        {
+            var j = new Job
+            {
+                Name = job,
+                Parameters = span.TotalMilliseconds.ToString()
+            };
+            var transaction = _connection.GetDatabase().CreateTransaction();
+            transaction.SetAddAsync($"{_options.KeyPrefix}_scheduled_jobs", job, CommandFlags.FireAndForget);
+            await UpsertJob(j, transaction);
+        }
 
         public async Task OnJob<T>(string job, Func<T, Task> callback)
         {
@@ -234,9 +246,20 @@ namespace RedisJobQueue
                 {
                     var (name, value) = pair;
                     var job = jobDict[name];
-                    var expression = CronExpression.Parse((string) job.Parameters);
-                    var occurence = value ?? DateTime.UtcNow;
-                    var nextUtc = expression.GetNextOccurrence(occurence);
+                    DateTime? nextUtc;
+                    // Is interval job, not cron expression
+                    if (int.TryParse((string) job.Parameters, out var millis))
+                    {
+                        var lastRun = value ?? DateTime.Now;
+                        nextUtc = lastRun.AddMilliseconds(millis);
+                    }
+                    else
+                    {
+                        var expression = CronExpression.Parse((string) job.Parameters);
+                        var occurence = value ?? DateTime.UtcNow;
+                        nextUtc = expression.GetNextOccurrence(occurence);    
+                    }
+                    
                     if (!nextUtc.HasValue || nextUtc.Value > DateTime.UtcNow)
                     {
                         continue;
