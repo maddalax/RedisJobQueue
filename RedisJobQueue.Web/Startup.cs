@@ -91,7 +91,10 @@ namespace RedisJobQueue.Web
                         Console.WriteLine(value);
                         await Task.Delay(1);
                     });
+                    queue.Queue.OnScheduledJob("scheduled",
+                        async () => { Console.WriteLine("Scheduled executed."); });
                     queue.Queue.Start();
+                    await queue.Queue.Schedule("scheduled", "* * * * *");
                 }
                 catch (Exception e)
                 {

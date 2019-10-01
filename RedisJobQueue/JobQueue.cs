@@ -656,7 +656,7 @@ namespace RedisJobQueue
             try
             {
                 transaction.StringIncrementAsync($"{_options.KeyPrefix}_job_{job.Name}_run_count");
-                transaction.ListRemoveAsync($"{_options.KeyPrefix}_progress", BsonSerializer.ToBson(job));
+                transaction.ListRemoveAsync($"{_options.KeyPrefix}_progress", job.RunId.ToString());
                 transaction.StringIncrementAsync($"{_options.KeyPrefix}_stats_total_runs");
                 await SaveJobRun(job, JobStatus.Success, transaction);
 
