@@ -152,7 +152,7 @@ namespace RedisJobQueue
         public async Task OnJob<T>(string job, Func<T, Task> callback)
         {
             await UpsertJob(job, new JobOptions());
-            var expression = new Func<object, Task>(o => callback((T) o));
+            var expression = new Func<object, Task>(o => callback(o == null ? default : (T) o));
             _listeners.TryAdd(job, expression);
         }
 

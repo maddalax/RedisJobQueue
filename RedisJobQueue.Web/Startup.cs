@@ -89,7 +89,7 @@ namespace RedisJobQueue.Web
                     await queue.Queue.OnJob<int>("test", async value =>
                     {
                         Console.WriteLine(value);
-                        await Task.Delay(1);
+                        await Task.Delay(2000);
                     });
                     queue.Queue.OnScheduledJob("scheduled",
                         async () => { Console.WriteLine("Scheduled executed."); });
