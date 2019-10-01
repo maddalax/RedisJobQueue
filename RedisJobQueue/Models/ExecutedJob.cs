@@ -4,25 +4,17 @@ using Newtonsoft.Json;
 
 namespace RedisJobQueue.Models
 {
-    public class ExecutedJob
+    public class ExecutedJob : Job
     {
-        public string Name { get; set; }
         public long Timestamp { get; set; }
         public string MachineName { get; set; }
         public Guid MachineId { get; set; }
-        public Guid RunId { get; set; }
         public JobStatus Status { get; set; }
         
         public long NextRetry { get; set; }
-        
-        public object Parameters { get; set; }
-        
-        public int Retries { get; set; }
-        
-        public JobType Type { get; set; }
-        
-        public Exception Exception { get; set; }
 
+        public int Retries { get; set; }
+        public Exception Exception { get; set; }
         public ExecutedJob()
         {
             
@@ -37,6 +29,7 @@ namespace RedisJobQueue.Models
             Parameters = job.Parameters;
             Status = status;
             Type = job.Type;
+            Options = job.Options;
         }
     }
 

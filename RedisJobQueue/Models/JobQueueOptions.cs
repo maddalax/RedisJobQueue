@@ -10,6 +10,8 @@ namespace RedisJobQueue.Models
         public TimeSpan JobLockTimeout { get; set; } = TimeSpan.FromSeconds(30);
         public TimeSpan PollRate { get; set; } = TimeSpan.FromSeconds(5);
 
+        public TimeSpan JobRunTimeout { get; set; } = TimeSpan.FromMinutes(30);
+        
         public int MaxRetries { get; set; } = 10;
 
         public int MaxConcurrentJobs { get; set; } = 10;
