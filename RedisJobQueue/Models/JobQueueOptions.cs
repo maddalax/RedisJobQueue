@@ -13,6 +13,8 @@ namespace RedisJobQueue.Models
         public int MaxRetries { get; set; } = 10;
 
         public int MaxConcurrentJobs { get; set; } = 10;
+
+        public int MaxJobRunsToSave { get; set; } = 100;
         
         public TimeSpan RetryBackOff { get; set; } = TimeSpan.FromSeconds(5);
 

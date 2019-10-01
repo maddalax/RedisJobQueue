@@ -86,10 +86,10 @@ namespace RedisJobQueue.Web
                 try
                 {
                     var queue = scope.ServiceProvider.GetService<RedisJobQueue>();
-                    await queue.Queue.OnJob("test", () =>
+                    await queue.Queue.OnJob("test", async () =>
                     {
                         Console.WriteLine(Guid.NewGuid() + " " + DateTime.UtcNow);
-                        return Task.CompletedTask;
+                        await Task.Delay(1);
                     });
                     queue.Queue.Start();
                 }

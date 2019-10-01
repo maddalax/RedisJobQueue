@@ -22,11 +22,6 @@ namespace RedisJobQueue
             _tasks.Add(func);
         }
 
-        public void Remove(Func<Task> func)
-        {
-            _tasks.Remove(func);
-        }
-
         public void Start(CancellationToken? token)
         {
             _token = token;
@@ -45,10 +40,6 @@ namespace RedisJobQueue
                     }
 
                     await DoExecute();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
                 }
                 finally
                 {
