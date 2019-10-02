@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -50,10 +51,7 @@ namespace RedisJobQueue
 
         private async Task DoExecute()
         {
-            foreach (var task in _tasks)
-            {
-                await task();
-            }
+            await Task.WhenAll(_tasks.Select(w => w.Invoke()));
         }
     }
 }

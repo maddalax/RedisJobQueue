@@ -36,6 +36,7 @@ namespace RedisJobQueue.Web
                         Configuration.GetConnectionString("Redis"));
                 return new RedisJobQueue(conn, new JobQueueOptions
                 {
+                    PollRate = TimeSpan.FromSeconds(1),
                     Namespace = Configuration.GetValue<string>("RedisJobQueue:Namespace")
                 });
             });
@@ -90,6 +91,11 @@ namespace RedisJobQueue.Web
                     {
                         Console.WriteLine(value);
                         await Task.Delay(2000);
+                    });
+                    queue.Queue.OnScheduledJob("test_interval", () =>
+                    {
+                        Console.WriteLine(Guid.NewGuid() + " " + DateTime.UtcNow);
+                        return Task.CompletedTask;
                     });
                     queue.Queue.OnScheduledJob("scheduled",
                         async () => { Console.WriteLine("Scheduled executed."); });

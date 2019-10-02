@@ -12,6 +12,7 @@ namespace RedisJobQueue
         Task EnqueueMany(IEnumerable<string> job);
         Task Enqueue(string job);
         Task Schedule(string job, string cronExpression);
+        Task Interval(string job, TimeSpan span);
         Task OnJob<T>(string job, Func<T, Task> callback);
         Task OnJob(string job, Func<Task> callback);
         void OnScheduledJob(string job, Func<Task> callback);

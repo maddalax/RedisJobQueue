@@ -28,8 +28,7 @@ namespace RedisJobQueue
         private readonly PollingExecutor _executor;
         private readonly SemaphoreSlim _semaphore;
         private readonly SemaphoreSlim _pollingSemaphore;
-
-
+        
         public JobQueue(ConnectionMultiplexer connection)
         {
             _id = Guid.NewGuid();
@@ -49,6 +48,8 @@ namespace RedisJobQueue
         public JobQueue(ConnectionMultiplexer connection, JobQueueOptions options) : this(connection)
         {
             _options = options;
+            _executor = new PollingExecutor(_options.PollRate);
+            _semaphore = new SemaphoreSlim(_options.MaxConcurrentJobs);
         }
 
         public void Start()
