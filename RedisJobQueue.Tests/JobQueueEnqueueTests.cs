@@ -24,38 +24,38 @@ namespace RedisJobQueue.Tests
         }
 
         [Fact]
-        public void Should_Enqueue_Job_With_Parameter()
+        public async Task Should_Enqueue_Job_With_Parameter()
         {   var autoReset = new AutoResetEvent(false);
             var passed = string.Empty;
             var queue = NewQueue();
-            queue.OnJob("test_job", (string value) =>
+            await queue.OnJob("test_job_with_params", (string value) =>
             {
                 autoReset.Set();
                 passed = value;
                 return Task.CompletedTask;
             });
             queue.Start();
-            queue.Enqueue("test_job", "parameter");
+            await queue.Enqueue("test_job_with_params", "parameter");
             Assert.True(autoReset.WaitOne());
             Assert.Equal("parameter", passed);
         }
         
         [Fact]
-        public void Should_Enqueue_Job_Without_Parameter()
+        public async Task Should_Enqueue_Job_Without_Parameter()
         {   var autoReset = new AutoResetEvent(false);
             var queue = NewQueue();
-            queue.OnJob("test_job", () =>
+            await queue.OnJob("test_job", () =>
             {
                 autoReset.Set();
                 return Task.CompletedTask;
             });
             queue.Start();
-            queue.Enqueue("test_job");
+            await queue.Enqueue("test_job");
             Assert.True(autoReset.WaitOne());
         }
 
         [Fact]
-        public void Should_Enqueue_On_Interval()
+        public async Task Should_Enqueue_On_Interval()
         {
             var autoReset = new AutoResetEvent(false);
             var queue = NewQueue();
@@ -65,7 +65,7 @@ namespace RedisJobQueue.Tests
                 return Task.CompletedTask;
             });
             queue.Start();
-            queue.Interval("interval_test_job", TimeSpan.FromSeconds(1));
+            await queue.Interval("interval_test_job", TimeSpan.FromSeconds(1));
             Assert.True(autoReset.WaitOne());
         }
 

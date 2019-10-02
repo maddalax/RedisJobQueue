@@ -38,7 +38,7 @@ namespace RedisJobQueue
             _executor = new PollingExecutor(_options.PollRate);
             _listeners = new ConcurrentDictionary<string, Func<object, Task>>();
             _listenersNoArgs = new ConcurrentDictionary<string, Func<Task>>();
-            _semaphore = new SemaphoreSlim(_options.MaxConcurrentJobs, _options.MaxConcurrentJobs);
+            _semaphore = new SemaphoreSlim(_options.MaxConcurrentJobs);
             _pollingSemaphore = new SemaphoreSlim(1, 1);
             _lockFactory = RedLockFactory.Create(new List<RedLockMultiplexer>
             {
@@ -577,7 +577,7 @@ namespace RedisJobQueue
             await _semaphore.WaitAsync();
 
             ExecutedJob job = null;
-            string runId = string.Empty;
+            string runId = string.Empty; 
             try
             {
                 var db = _connection.GetDatabase();
