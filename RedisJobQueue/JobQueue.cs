@@ -570,7 +570,8 @@ namespace RedisJobQueue
 
         private long CalculateNextRetry(ExecutedJob run)
         {
-            return (run.Retries * _options.RetryBackOff).Ticks;
+            var ticks = (run.Retries * _options.RetryBackOff).Ticks;
+            return DateTime.UtcNow.AddTicks(ticks).Ticks;
         }
 
         private async Task ExecuteQueue()

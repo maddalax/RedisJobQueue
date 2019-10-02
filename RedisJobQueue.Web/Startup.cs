@@ -97,6 +97,7 @@ namespace RedisJobQueue.Web
                         Console.WriteLine(Guid.NewGuid() + " " + DateTime.UtcNow);
                         return Task.CompletedTask;
                     });
+                    await queue.Queue.OnJob("fail", () => { throw new Exception("test failure"); });
                     queue.Queue.OnScheduledJob("scheduled",
                         async () => { Console.WriteLine("Scheduled executed."); });
                     queue.Queue.Start();

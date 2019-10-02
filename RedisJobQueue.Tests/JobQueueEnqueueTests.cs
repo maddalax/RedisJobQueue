@@ -14,7 +14,7 @@ namespace RedisJobQueue.Tests
 
         private readonly JobQueueOptions _options = new JobQueueOptions
         {
-            PollRate = TimeSpan.FromSeconds(1),
+            PollRate = TimeSpan.FromMilliseconds(50),
             Namespace = Guid.NewGuid().ToString()
         };
 
